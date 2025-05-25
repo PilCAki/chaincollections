@@ -33,7 +33,7 @@ result = (crange(100)
 ### Navigating and Transforming Complex JSON Trees
 
 ```python
-from chaincollections import chain, cdict
+from chaincollections import chain
 
 # Nested JSON from an API response or config file
 api_response = {
@@ -60,24 +60,43 @@ api_response = {
     ]
 }
 
-# Find all executable files at any nesting level, with modified paths
-result = (chain(api_response["results"])
-    .flatmap(lambda node: chain([node])  # Start with top-level node
-        .concat(                         # Then recursively gather:
-            chain(node.get("children", []))
-            .flatmap(lambda child: 
-                chain([child]).concat(  # The child itself
-                    chain(child.get("children", []))  # And its nested children
-                    .flatmap(lambda c: c.get("children", []))  # And their children
-                )
-            )
-        )
-    )
-    .filter(lambda node: node["type"] == "file" and "execute" in node.get("permissions", []))
+# Enable recursive chaining for easy traversal of nested structures
+c = chain(api_response, recursive=True)
+
+# With recursive chaining, we can easily find node6 by directly accessing the nested structure
+# Notice how we can chain methods at any nesting level without manually wrapping each level
+deep_node = c["results"][1]["children"][0]["children"][0]
+print(deep_node["id"])  # "node6"
+
+# We can directly chain operations on deeply nested properties
+permissions = deep_node["permissions"]
+print(permissions.join("-"))  # "read-write-execute"
+
+# Find all files across all folders and subfolders
+files = []
+
+# Process first-level folders
+for folder in c["results"]:
+    # Direct children that are files
+    for child in folder["children"]:
+        if child["type"] == "file":
+            files.append(child)
+        # Nested children in subfolders
+        elif child["type"] == "folder" and "children" in child:
+            for subchild in child["children"]:
+                if subchild["type"] == "file":
+                    files.append(subchild)
+
+# Chain operations on the collected files
+# With recursive=True, we can directly access and chain on nested properties
+result = (
+    chain(files, recursive=True)
+    .filter(lambda node: "execute" in node["permissions"])
     .map(lambda node: {
         "path": f"/root/{node['id']}",
         "size_kb": node["size"] / 1024,
-        "full_permissions": "".join(p[0] for p in node.get("permissions", []))
+        # Direct chaining on the permissions array
+        "full_permissions": node["permissions"].map(lambda p: p[0]).join("")
     })
     .sort_by(lambda node: node["size_kb"], reverse=True)
     .to_list()
