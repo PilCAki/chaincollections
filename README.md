@@ -70,7 +70,7 @@ print(deep_node["id"])  # "node6"
 
 # We can directly chain operations on deeply nested properties
 permissions = deep_node["permissions"]
-print(permissions.join("-"))  # "read-write-execute"
+print(list(permissions))  # ["read", "write", "execute"]
 
 # Find all files across all folders and subfolders
 files = []
@@ -96,11 +96,14 @@ result = (
         "path": f"/root/{node['id']}",
         "size_kb": node["size"] / 1024,
         # Direct chaining on the permissions array
-        "full_permissions": node["permissions"].map(lambda p: p[0]).join("")
+        "full_permissions": "".join(p[0] for p in node["permissions"])
     })
-    .sort_by(lambda node: node["size_kb"], reverse=True)
-    .to_list()
+    # Sort by size in descending order
+    .sort(key=lambda node: node["size_kb"], reverse=True)
 )
+
+# Convert to list for final result
+result = list(result)
 
 # Result: [
 #   {"path": "/root/node6", "size_kb": 4.0, "full_permissions": "rwe"}
